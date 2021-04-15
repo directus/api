@@ -163,7 +163,7 @@ export default {
 
 			try {
 				const githubVersionResponse = await axios.get(
-					'https://api.github.com/repos/directus/directus/tags'
+					'https://api.github.com/repos/directus/v8-archive/tags'
 				);
 				this.lastTag = githubVersionResponse.data.find(
 					tag => tag.name.includes('-') === false
