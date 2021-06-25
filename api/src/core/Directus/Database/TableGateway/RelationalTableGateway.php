@@ -1016,6 +1016,15 @@ class RelationalTableGateway extends BaseTableGateway
     }
 
     /**
+     * @param $params - GET Parameters
+     * @return int
+     */
+    private function countFilterTotal($params)
+    {
+        return (int)$this->fetchItems($params, null, true)[0]['total'];
+    }
+
+    /**
      * Updates Metadata Object with Pagination
      *
      * @param $metadata - Existing metadata object
@@ -1040,23 +1049,10 @@ class RelationalTableGateway extends BaseTableGateway
 
         $meta_param = explode(',', ArrayUtils::get($params, 'meta', ''));
 
-        if ((in_array('filter_count', $meta_param) || in_array('*', $meta_param))) {
-            $metadata['filter_count'] = $countedData['total_count'];
+        if ($filtered && (in_array('filter_count', $meta_param) || in_array('*', $meta_param) || in_array('page', $meta_param))) {
+            $metadata['filter_count'] = $this->countFilterTotal($params);
         }
-
-        if ($filtered) {
-            $filteredparams = array_merge($params, [
-                "depth" => 0,
-                "fields" => $this->primaryKeyFieldName,
-                "limit" => -1
-            ]);
-
-            $entries = $this->fetchItems($filteredparams);
-            $total = count($entries);
-            if (in_array('filter_count', $meta_param) || in_array('*', $meta_param)) {
-                $metadata['filter_count'] = $total;
-            }
-        }
+        $total = $metadata['filter_count'] ?: $countedData['total_count'];
 
         $limit = $limit < 1 ? $rows : $limit;
         $pages = $total ? ceil($total / $limit) : 1;
@@ -1103,13 +1099,12 @@ class RelationalTableGateway extends BaseTableGateway
      * @throws Exception\ItemNotFoundException
      * @throws ForbiddenCollectionReadException
      */
-    public function fetchItems(array $params = [], \Closure $queryCallback = null)
+    public function fetchItems(array $params = [], \Closure $queryCallback = null, $countOnly = false)
     {
         $collectionObject = $this->getTableSchema();
 
         $params = $this->applyDefaultEntriesSelectParams($params);
-        $fields = ArrayUtils::get($params, 'fields');
-
+        $fields = $countOnly ? ['*'] : ArrayUtils::get($params, 'fields');
 
         // TODO: Check for all collections + fields permission/existence before querying
         // TODO: Create a new TableGateway Query Builder based on Query\Builder
@@ -1138,6 +1133,7 @@ class RelationalTableGateway extends BaseTableGateway
             }
         }
 
+        $selectedFields = $countOnly ? ['total' => new Expression('COUNT(*)')] : $selectedFields;
         $builder->columns($selectedFields);
 
         $builder = $this->applyParamsToTableEntriesSelect(
